@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "lib": ["webworker", "esnext"],
+    "strict": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true
+  },
+  "include": ["index.ts"]
+}

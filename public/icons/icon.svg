@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Fondo -->
+  <rect width="512" height="512" rx="100" fill="#f06007"/>
+
+  <!-- Sombra -->
+  <ellipse cx="256" cy="298" rx="166" ry="14" fill="#c74808" opacity="0.5"/>
+
+  <!-- Cuerpo de la empanada -->
+  <path d="M 96 284 A 160 160 0 0 1 416 284 Z" fill="#f0b429"/>
+
+  <!-- Brillo superficie -->
+  <path d="M 140 284 A 116 105 0 0 1 372 284 Z" fill="#f9d06a" opacity="0.55"/>
+
+  <!-- Repulgue: bolitas sobre el borde curvo -->
+  <circle cx="96"   cy="284" r="16" fill="#c97d18"/>
+  <circle cx="108"  cy="221" r="15" fill="#c97d18"/>
+  <circle cx="143"  cy="167" r="15" fill="#c97d18"/>
+  <circle cx="195"  cy="132" r="15" fill="#c97d18"/>
+  <circle cx="256"  cy="120" r="15" fill="#c97d18"/>
+  <circle cx="317"  cy="132" r="15" fill="#c97d18"/>
+  <circle cx="369"  cy="167" r="15" fill="#c97d18"/>
+  <circle cx="404"  cy="221" r="15" fill="#c97d18"/>
+  <circle cx="416"  cy="284" r="16" fill="#c97d18"/>
+
+  <!-- Base plana -->
+  <rect x="82" y="278" width="348" height="16" rx="8" fill="#c97d18"/>
+</svg>

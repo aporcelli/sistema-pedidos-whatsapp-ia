@@ -1,0 +1,573 @@
+{
+  "name": "Susi - atencion al cliente - empanadas",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition_1",
+              "leftValue": "={{ $json.body.data.key.remoteJid }}",
+              "rightValue": "@g.us",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "281f9db3-d09e-4b86-a3a9-530215de6cb9",
+      "name": "Solo Chats Privados",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1904,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "cond_extended",
+                    "leftValue": "={{ $json.body.data.messageType }}",
+                    "rightValue": "conversation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "texto"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "cond_audio",
+                    "leftValue": "={{ $json.body.data.messageType }}",
+                    "rightValue": "audioMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "audio"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d88e2960-d581-454f-8a4b-98a95e6664c1",
+      "name": "Tipo de Mensaje",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -1328,
+        976
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== 1. OBTENER DATA DEL WEBHOOK =====\nconst webhookData = $('Webhook Evolution API').first().json;\n\n// Soporte para distintas estructuras posibles\nconst data = webhookData?.body?.data || webhookData?.data || webhookData;\n\n// ===== 2. DATOS BÁSICOS =====\nconst messageType = data?.messageType || 'unknown';\n\nlet userMessage = '';\nlet phoneNumber = data?.key?.remoteJid?.replace('@s.whatsapp.net', '') \n  || data?.sender \n  || data?.from \n  || `user_${Date.now()}`;\nlet pushName = data?.pushName || 'Cliente';\n\n// ===== 3. PROCESAR MENSAJE =====\nif (messageType === 'conversation') {\n  userMessage = data?.message?.conversation || '';\n} \nelse if (messageType === 'extendedTextMessage') {\n  userMessage = data?.message?.extendedTextMessage?.text || '';\n} \nelse if (messageType === 'audioMessage') {\n  try {\n    const transcription = $('Transcribir con Whisper').first();\n    userMessage = transcription?.json?.text || '[Audio no transcrito]';\n  } catch (e) {\n    userMessage = '[Error al transcribir audio]';\n  }\n} \nelse {\n  userMessage = '[Tipo de mensaje no soportado]';\n}\n\n// ===== 4. SUPABASE CONFIG =====\nconst SUPABASE_URL = 'https://lquapfdlkztqfihjvuxv.supabase.co';\nconst SUPABASE_KEY = 'TU_KEY_AQUI'; // ⚠️ recomendable mover a credenciales\n\nconst headers = {\n  apikey: SUPABASE_KEY,\n  Authorization: `Bearer ${SUPABASE_KEY}`,\n  'Content-Type': 'application/json'\n};\n\n// ===== 5. TRAER PRECIOS =====\nlet prices = {};\n\ntry {\n  const response = await fetch(\n    `${SUPABASE_URL}/rest/v1/products?available=eq.true&category=eq.precio`,\n    {\n      method: 'GET',\n      headers\n    }\n  );\n\n  const pricesResult = await response.json();\n\n  if (Array.isArray(pricesResult)) {\n    pricesResult.forEach(p => {\n      if (p.name && p.price) {\n        prices[p.name] = p.price;\n      }\n    });\n  }\n\n} catch (error) {\n  console.log('Error trayendo precios:', error);\n}\n\n// ===== 6. SABORES DISPONIBLES =====\nlet flavors = '';\n\ntry {\n  flavors = $('get_flavors')\n    .all()\n    .map(i => i.json.name)\n    .join(', ');\n} catch (e) {\n  flavors = '';\n}\n\n// ===== 7. OUTPUT FINAL =====\nreturn [\n  {\n    json: {\n      chatInput: userMessage,\n      sessionId: phoneNumber,\n      sessionKey: phoneNumber,\n      phoneNumber: phoneNumber,\n      pushName: pushName,\n      instanceName: webhookData?.body?.instance || webhookData?.instance || '',\n      messageType: messageType,\n      timestamp: new Date().toISOString(),\n      flavors_available: flavors,\n      prices: prices\n    }\n  }\n];"
+      },
+      "id": "0bd2d8fc-24ad-475b-989e-363831a1316b",
+      "name": "Preparar Datos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -576,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {
+          "maxTokens": 1024,
+          "temperature": 0.7
+        }
+      },
+      "id": "a91172e6-d221-4359-a9bc-c57a92f27dd2",
+      "name": "OpenAI GPT-4o",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        928
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "OiBQ8etCEDPiOztg",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {
+          "language": "es"
+        }
+      },
+      "id": "ed99bf65-9eda-4263-a548-4f7a87f9abcd",
+      "name": "Transcribir con Whisper",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -800,
+        1040
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "OiBQ8etCEDPiOztg",
+          "name": "OpenAi account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Preparar Datos').item.json.instanceName }}",
+        "remoteJid": "={{ $('Preparar Datos').item.json.phoneNumber }}@s.whatsapp.net",
+        "messageText": "={{ $json.output }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        688,
+        816
+      ],
+      "id": "f3484867-7cab-4d0e-96d4-765c9a697599",
+      "name": "Enviar texto",
+      "credentials": {
+        "evolutionApi": {
+          "id": "YzIzUGmJlyVgdwbN",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chat-api",
+        "operation": "get-media-base64",
+        "instanceName": "=={{ $('Webhook Evolution API').first().json.body.instance }}",
+        "messageId": "=={{ $('Webhook Evolution API').first().json.body.data.key.id }}"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -1024,
+        1040
+      ],
+      "id": "cbe4e4cf-cc3d-48cf-8261-c591decfa26a",
+      "name": "Obter m dia em base64",
+      "credentials": {
+        "evolutionApi": {
+          "id": "YzIzUGmJlyVgdwbN",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.chatInput }}",
+        "guardrails": {
+          "nsfw": {
+            "value": {
+              "threshold": 0.7
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.guardrails",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        960
+      ],
+      "id": "0b9585f5-9866-4cef-a048-1bd74d4013a2",
+      "name": "Guardrails1"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Preparar Datos').item.json.instanceName }}",
+        "remoteJid": "={{ $('Preparar Datos').item.json.phoneNumber }}@s.whatsapp.net",
+        "messageText": "Lo siento. No puedo ayudarte con eso.",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        112,
+        1104
+      ],
+      "id": "c46ad3f6-9c58-451e-b97a-1228715c0234",
+      "name": "Enviar texto1",
+      "credentials": {
+        "evolutionApi": {
+          "id": "YzIzUGmJlyVgdwbN",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -288,
+        1184
+      ],
+      "id": "0468b5c3-bdd0-411a-8e68-4ba4450eaf1e",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "OiBQ8etCEDPiOztg",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Preparar Datos').item.json.chatInput }}",
+        "options": {
+          "systemMessage": "=# IDENTIDAD Y ROL\n\nEres **Susi**, la asistente virtual de **Las Empanadas de Susi**. Tu rol es ser el primer punto de contacto con los clientes a través de WhatsApp, tomando pedidos y proporcionando información de manera amable, cálida y eficiente.\n\n---\n\n# INFORMACIÓN DEL NEGOCIO\n\n## Datos de Contacto\n- **Nombre**: Las Empanadas de Susi\n- **Ubicación**: Carhué, Buenos Aires, Argentina\n- **Dirección para retiro**: Quinquela Martin 860, Carhué\n- **Alias de pago**: Empanadasusi.mp (cuenta a nombre de Gisela Belleggia)\n\n## Horario de Atención\n| Día | Horario |\n|-----|--------|\n| Lunes a Domingo | 18:00 - 23:00 hs |\n\n**Zona horaria**: America/Argentina/Buenos_Aires\n\n## Productos y Precios\n- Empanada individual: ${{ $('Preparar Datos').item.json.prices['Empanada individual'] }}\n- Media docena (6 empanadas): ${{ $('Preparar Datos').item.json.prices['Media docena'] }}\n- Docena (12 empanadas): ${{ $('Preparar Datos').item.json.prices['Docena'] }}\n\n**Sabores disponibles hoy**: {{ $('Preparar Datos').item.json.flavors_available }}\n\n## Métodos de Pago\n- Efectivo\n- Transferencia bancaria\n- MercadoPago\n- Cuenta DNI\n- Cualquier billetera virtual\n- **Alias**: Empanadasusi.mp (Gisela Belleggia)\n\n## Delivery y Retiro\n- **Delivery**: llega a todo Carhué\n- **Retiro**: Quinquela Martin 860, Carhué\n- **Tiempo de entrega**: 30 a 50 minutos para pedidos inmediatos\n- **Pedidos programados**: se entregan en el horario solicitado con una franja de 10 minutos\n\n---\n\n# HERRAMIENTAS DISPONIBLES\n\n## 1. manage_order\n- **Uso**: Guarda o cancela pedidos en Supabase\n- **Acciones disponibles**:\n  - `save`: Guarda y confirma el pedido automáticamente en un solo paso.\n  - `cancel`: Cancela el pedido. Requiere el `order_id`.\n\n- **Secuencia para nuevo pedido**:\n  1. Llamar con `action: \"save\"` y todos los datos del pedido\n  2. El sistema guarda y confirma automáticamente\n\n- **Para cancelar**:\n  1. Llamar con `action: \"cancel\"` y el `order_id` del pedido\n\n---\n\n# FLUJOS DE TRABAJO\n\n## Flujo 1: Tomar Nuevo Pedido\n\n1. Saludar al cliente de forma cálida\n2. Informar sabores disponibles si pregunta o quiere pedir\n3. Identificar tipo (frita / al horno)\n4. Identificar cantidad total\n5. Identificar sabores y cantidades de cada uno\n   → Verificar que la suma de sabores coincida con la cantidad total\n6. Preguntar delivery o retiro\n   → Si delivery: pedir dirección\n   → Si retiro: confirmar Quinquela Martin 860\n7. Pedir nombre del cliente\n8. Pedir horario de entrega deseado\n9. Llamar a calculate_price con la cantidad total para obtener el precio\n10. Mostrar resumen completo y pedir confirmación explícita\n11. SOLO después de recibir confirmación explícita (\"sí\", \"confirmo\", \"dale\", \"ok\", \"listo\") → llamar a manage_order\n12. Confirmar al cliente que el pedido fue recibido\n13. Informar métodos de pago y alias\n\n## Flujo 2: Cancelar Pedido\n\n1. Identificar el pedido a cancelar\n2. Confirmar con el cliente que quiere cancelar\n3. Llamar a manage_order con action \"cancel\" y el order_id\n4. Confirmar la cancelación al cliente\n5. Ofrecer hacer un nuevo pedido si lo desea\n\n## Flujo 3: Consulta de Información\n\n1. Responder la consulta con la información del negocio\n2. Ofrecer tomar un pedido si corresponde\n\n---\n\n# REGLAS DE NEGOCIO\n\n## Restricciones de Pedidos\n- **Horario de entrega válido**: Solo entre 18:00 y 23:00 hs\n- **Pedidos fuera de horario**: Tomarlos siempre y programarlos para cuando abra\n- **Sabores**: Solo ofrecer los sabores disponibles hoy\n\n## Validaciones Obligatorias\n1. NUNCA guardar el pedido sin confirmación explícita del cliente\n2. NUNCA ofrecer sabores que no están en la lista de hoy\n3. NUNCA inventar datos que el cliente no proporcionó\n4. SIEMPRE verificar que la suma de sabores coincida con la cantidad total\n5. SIEMPRE confirmar todos los datos antes de llamar a manage_order\n6. NUNCA llamar a manage_order sin tener el nombre real del cliente\n7. SIEMPRE preguntar el nombre del cliente explícitamente antes del resumen final, aunque ya tengas el nombre de WhatsApp — puede ser un apodo\n8. NUNCA guardar el pedido si el cliente todavía está modificando datos — si el cliente cambia el horario, la dirección u otro dato DESPUÉS de que mostraste el resumen, actualizá el resumen y pedí confirmación nuevamente antes de guardar\n9. NUNCA guardar el pedido más de una vez — si ya se guardó, no volver a llamar a manage_order aunque el cliente mande otro mensaje de confirmación\n10. NUNCA mostrar el ID del pedido al cliente — es un dato interno\n11. Una vez que llamaste a manage_order con action \"save\", el pedido está guardado. NUNCA volver a llamar a manage_order aunque el cliente mande otro mensaje positivo como \"gracias\", \"perfecto\", \"ok\", \"genial\", etc. Si el pedido ya fue guardado, simplemente respondé con un mensaje de despedida.\n\n## Cálculo de Precios\nSIEMPRE llamar a la tool `calculate_price` con la cantidad total para obtener el precio correcto.\nNUNCA calcular el precio manualmente.\nMostrá el desglose que devuelve la tool al cliente.\n\nEjemplos:\n- 6 emp. = 1 media docena\n- 7 emp. = 1 media docena + 1 individual\n- 10 emp. = 1 media docena + 4 individuales\n- 12 emp. = 1 docena\n- 15 emp. = 1 docena + 3 individuales\n- 18 emp. = 1 docena + 1 media docena\n- 24 emp. = 2 docenas\n\nSIEMPRE mostrá el desglose del cálculo al cliente.\n\n## Datos del Cliente Actual\n- **Teléfono**: {{ $('Preparar Datos').item.json.phoneNumber }}\n- **Nombre WhatsApp**: {{ $('Preparar Datos').item.json.pushName }}\n\n---\n\n# DIRECTRICES DE COMUNICACIÓN\n\n## Tono y Estilo\n- **Cálida y cercana**: Como si fueras una persona real del negocio\n- **Rioplatense**: Usá voseo siempre (vos, tenés, querés, podés)\n- **Concisa**: Es WhatsApp, mensajes breves y directos\n- **Natural**: Nunca robótica ni con menús numerados forzados\n\n## Formato de Mensajes\n- Usar emojis con moderación (1-2 por mensaje máximo)\n- Emojis recomendados: 😊 🥟 💛 ✅ 🍟 📍\n- Usar saltos de línea para mejorar legibilidad\n- Evitar muros de texto\n\n## Ejemplos de Tono\n\n**Saludo inicial:**\n¡Hola! 😊 Soy Susi, la asistente de Las Empanadas de Susi. ¿En qué te puedo ayudar?\n\n**Confirmación de pedido:**\n¡Listo! Tu pedido quedó confirmado 🥟\n\n📋 12 empanadas fritas de carne + 12 al horno de jamón y queso\n📍 Retiro en Quinquela Martin 860, Carhué\n⏰ Para las 22:00 hs\n💰 2 docenas = $46.000\n\nPodés pagar por MercadoPago al alias Empanadasusi.mp (Gisela Belleggia) o en efectivo al momento de la entrega. ¡Gracias!\n\n**Despedida:**\n¡Gracias por elegirnos! Si necesitás algo más, acá estamos. 😊\n\n---\n\n# MANEJO DE SITUACIONES ESPECIALES\n\n## Casos Frecuentes\n\n**Si el cliente pide un sabor no disponible hoy:**\nAy, hoy no tenemos de [sabor] 😕 Los sabores disponibles son: [lista]. ¿Te tienta alguno?\n\n**Si el cliente escribe fuera del horario:**\n¡Hola! 😊 Podemos tomar tu pedido ahora y lo programamos para cuando abramos a las 18hs. ¿Qué te gustaría pedir?\n\n**Si el cliente pregunta el precio:**\nContame cuántas empanadas querés y te calculo el total con el mejor precio 😊\n\n**Si el cliente quiere cancelar:**\nEntiendo, no hay problema. ¿Confirmás que querés cancelar el pedido?\n\n**Si el cliente modifica el horario u otro dato después del resumen:**\nPerfecto, actualizo el horario. El pedido queda para las [nuevo horario]. ¿Confirmás todo así?\n\n---\n\n# PROCESAMIENTO DEL PEDIDO\n\n* ANALIZÁ cada mensaje del cliente e identificá qué datos ya fueron proporcionados y cuáles faltan.\n* NUNCA vuelvas a preguntar datos que el cliente ya proporcionó.\n* NUNCA hagas más de una pregunta por mensaje — si faltan varios datos, preguntá de a uno.\n* SI el cliente manda toda la información en un solo mensaje, procesala directamente.\n* SI el cliente da sabores pero no cantidad, calculá la cantidad sumando los sabores.\n* SI el cliente da cantidad pero no sabores, preguntá solo los sabores.\n* SI el cliente no dio su nombre explícitamente, preguntárselo SIEMPRE antes del resumen final.\n* SI el cliente modifica algún dato después del resumen, actualizá y pedí confirmación nuevamente sin guardar.\n\n---\n\n# RECORDATORIOS IMPORTANTES\n\n1. **Identificar al cliente**: Teléfono {{ $('Preparar Datos').item.json.phoneNumber }}, nombre WhatsApp {{ $('Preparar Datos').item.json.pushName }}. Siempre pedí el nombre real antes de confirmar.\n\n2. **Secuencia para pedidos**:\n   - CREAR: llamar manage_order con action \"save\" — guarda y confirma automáticamente — SOLO UNA VEZ\n   - CANCELAR: llamar manage_order con action \"cancel\" y el order_id\n\n3. **Verificar antes de actuar**: Siempre confirmá los datos con el cliente antes de llamar a manage_order\n\n4. **Memoria de conversación**: Recordá el contexto para no repetir preguntas\n\n5. **Formato de números**: Usar formato argentino\n   - Bien: \"$46.000\" / \"22:00 hs\"\n   - Mal: \"46000\" / \"10:00 PM\"\n\n---\n\n# INICIO DE CONVERSACIÓN\n\nCuando recibas el primer mensaje del cliente:\n1. Saludá de forma cálida\n2. Presentate brevemente como Susi\n3. Preguntá en qué podés ayudar\n4. Si el mensaje ya indica una intención (ej: \"quiero pedir empanadas\"), respondé directamente a esa necesidad sin saludar primero\n\nRecordá que hoy es: {{ $now }}"
+        }
+      },
+      "id": "4462626b-c4e9-494d-b316-068a9baa1be0",
+      "name": "Susi",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        48,
+        704
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://lquapfdlkztqfihjvuxv.supabase.co/rest/v1/flavors?available=eq.true",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"apikey\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxxdWFwZmRsa3p0cWZpaGp2dXh2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzU4MzExOSwiZXhwIjoyMDg5MTU5MTE5fQ.E9QW8V2kV55pmgI8Tn7dqkvlo6l80eew6DgGHYzDtvE\",\n  \"Authorization\": \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxxdWFwZmRsa3p0cWZpaGp2dXh2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzU4MzExOSwiZXhwIjoyMDg5MTU5MTE5fQ.E9QW8V2kV55pmgI8Tn7dqkvlo6l80eew6DgGHYzDtvE\",\n  \"Content-Type\": \"application/json\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1616,
+        960
+      ],
+      "id": "3983c760-ccb5-4e4b-bf4d-c5a58c3ff41a",
+      "name": "get_flavors",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Preparar Datos').item.json.sessionId }}",
+        "tableName": "chat_memory",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        128,
+        928
+      ],
+      "id": "966e29a3-4aef-4611-bfed-797fcc83795e",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "HcBeAORf18E0XpoT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = query.action;\nconst customer_name = query.customer_name;\nconst delivery_type = query.delivery_type;\nconst delivery_address = query.delivery_address;\nconst delivery_time = query.delivery_time;\nconst total = query.total;\nconst notes = query.notes;\nconst order_id = query.order_id;\n\nconst SUPABASE_URL = 'https://lquapfdlkztqfihjvuxv.supabase.co';\nconst SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxxdWFwZmRsa3p0cWZpaGp2dXh2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzU4MzExOSwiZXhwIjoyMDg5MTU5MTE5fQ.E9QW8V2kV55pmgI8Tn7dqkvlo6l80eew6DgGHYzDtvE';\n\nconst headers = {\n  'apikey': SUPABASE_KEY,\n  'Authorization': `Bearer ${SUPABASE_KEY}`,\n  'Content-Type': 'application/json',\n  'Prefer': 'return=representation'\n};\n\ntry {\n  if (action === 'save') {\n    const saveResult = await this.helpers.httpRequest({\n      method: 'POST',\n      url: `${SUPABASE_URL}/rest/v1/orders`,\n      headers,\n      body: JSON.stringify({\n        customer_name: customer_name,\n        delivery_type: delivery_type,\n        delivery_address: delivery_address || null,\n        delivery_time: delivery_time,\n        total: total,\n        notes: notes,\n        status: 'pending'\n      })\n    });\n\n    const order = Array.isArray(saveResult) ? saveResult[0] : saveResult;\n    const newOrderId = order.id;\n\n    await this.helpers.httpRequest({\n      method: 'PATCH',\n      url: `${SUPABASE_URL}/rest/v1/orders?id=eq.${newOrderId}`,\n      headers,\n      body: JSON.stringify({ status: 'confirmed' })\n    });\n\n    return `Pedido guardado y confirmado. ID: ${newOrderId}`;\n\n  } else if (action === 'cancel') {\n    await this.helpers.httpRequest({\n      method: 'PATCH',\n      url: `${SUPABASE_URL}/rest/v1/orders?id=eq.${order_id}`,\n      headers,\n      body: JSON.stringify({ status: 'cancelled' })\n    });\n    return 'Pedido cancelado exitosamente.';\n  }\n\n  return `action no reconocida: ${action}`;\n\n} catch(e) {\n  return `ERROR: ${e.message}`;\n}",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"action\": {\n      \"type\": \"string\",\n      \"enum\": [\"save\", \"confirm\", \"cancel\"],\n      \"description\": \"Acción: save para guardar pedido, confirm para confirmar, cancel para cancelar\"\n    },\n    \"customer_name\": {\n      \"type\": \"string\",\n      \"description\": \"Nombre del cliente (requerido para save)\"\n    },\n    \"delivery_type\": {\n      \"type\": \"string\",\n      \"description\": \"delivery o retiro (requerido para save)\"\n    },\n    \"delivery_address\": {\n      \"type\": \"string\",\n      \"description\": \"Dirección de entrega (solo para delivery)\"\n    },\n    \"delivery_time\": {\n      \"type\": \"string\",\n      \"description\": \"Horario de entrega (requerido para save)\"\n    },\n    \"total\": {\n      \"type\": \"number\",\n      \"description\": \"Total en pesos (requerido para save)\"\n    },\n    \"notes\": {\n      \"type\": \"string\",\n      \"description\": \"Detalle de sabores (requerido para save)\"\n    },\n    \"order_id\": {\n      \"type\": \"string\",\n      \"description\": \"ID del pedido (requerido para confirm y cancel)\"\n    }\n  },\n  \"required\": [\"action\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        256,
+        928
+      ],
+      "id": "b5caa66c-db4d-4bc2-a857-117d2ba75d4d",
+      "name": "manage_order"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bot-empanadas",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2160,
+        960
+      ],
+      "id": "0dc707dd-0e5e-4731-848d-3bd39e813018",
+      "name": "Webhook Evolution API",
+      "webhookId": "d4f4d541-d1a1-4f79-92f6-e0da1ab9cb6f"
+    },
+    {
+      "parameters": {
+        "jsCode": "const qty = query.quantity;\n\nconst SUPABASE_URL = 'https://lquapfdlkztqfihjvuxv.supabase.co';\nconst SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxxdWFwZmRsa3p0cWZpaGp2dXh2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzU4MzExOSwiZXhwIjoyMDg5MTU5MTE5fQ.E9QW8V2kV55pmgI8Tn7dqkvlo6l80eew6DgGHYzDtvE';\nconst headers = {\n  'apikey': SUPABASE_KEY,\n  'Authorization': `Bearer ${SUPABASE_KEY}`,\n  'Content-Type': 'application/json'\n};\n\nconst result = await this.helpers.httpRequest({\n  method: 'GET',\n  url: `${SUPABASE_URL}/rest/v1/products?available=eq.true&category=eq.precio`,\n  headers\n});\n\nconst prices = {};\nresult.forEach(p => { prices[p.name] = p.price; });\n\nconst pDocena = prices['Docena'] || 25000;\nconst pMediaDocena = prices['Media docena'] || 15000;\nconst pIndividual = prices['Empanada individual'] || 2500;\n\nconst docenas = Math.floor(qty / 12);\nconst resto = qty % 12;\nconst mediaDocenas = resto >= 6 ? 1 : 0;\nconst individuales = resto >= 6 ? resto - 6 : resto;\n\nconst total = (docenas * pDocena) + (mediaDocenas * pMediaDocena) + (individuales * pIndividual);\n\nconst desglose = [];\nif (docenas > 0) desglose.push(`${docenas} docena${docenas > 1 ? 's' : ''}: $${(docenas * pDocena).toLocaleString('es-AR')}`);\nif (mediaDocenas > 0) desglose.push(`1 media docena: $${pMediaDocena.toLocaleString('es-AR')}`);\nif (individuales > 0) desglose.push(`${individuales} individual${individuales > 1 ? 'es' : ''}: $${(individuales * pIndividual).toLocaleString('es-AR')}`);\n\nreturn `Total para ${qty} empanadas: $${total.toLocaleString('es-AR')} (${desglose.join(' + ')})`;",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"quantity\": {\n      \"type\": \"number\",\n      \"description\": \"Cantidad total de empanadas a calcular\"\n    }\n  },\n  \"required\": [\"quantity\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        384,
+        928
+      ],
+      "id": "ab1bac36-d228-4c67-8500-5c4e61cb3bcc",
+      "name": "calculate_price"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Solo Chats Privados": {
+      "main": [
+        [
+          {
+            "node": "get_flavors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tipo de Mensaje": {
+      "main": [
+        [
+          {
+            "node": "Preparar Datos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Obter m dia em base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Datos": {
+      "main": [
+        [
+          {
+            "node": "Guardrails1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI GPT-4o": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Susi",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribir con Whisper": {
+      "main": [
+        [
+          {
+            "node": "Preparar Datos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obter m dia em base64": {
+      "main": [
+        [
+          {
+            "node": "Transcribir con Whisper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardrails1": {
+      "main": [
+        [
+          {
+            "node": "Susi",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar texto1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Guardrails1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Susi": {
+      "main": [
+        [
+          {
+            "node": "Enviar texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_flavors": {
+      "main": [
+        [
+          {
+            "node": "Tipo de Mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Susi",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "manage_order": {
+      "ai_tool": [
+        [
+          {
+            "node": "Susi",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Evolution API": {
+      "main": [
+        [
+          {
+            "node": "Solo Chats Privados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "calculate_price": {
+      "ai_tool": [
+        [
+          {
+            "node": "Susi",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "f716671e-c687-4698-a403-9ffe3c4ebb58",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d5e88d22ae21d7c363f4b7a4bd6a439c10a8d18407abcfc54cac583d003f5e93"
+  },
+  "id": "zGm5Nl3ZWUqNbLMs",
+  "tags": []
+}
