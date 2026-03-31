@@ -1,0 +1,7 @@
+Costos de infraestructura: Railway para n8n + Evolution API ~$5 USD/mes. Vercel para la PWA en plan gratuito (100GB bandwidth/mes, suficiente para una app interna). Supabase en plan gratuito (500MB de base de datos, 2GB bandwidth/mes, con la limitación de que el proyecto se pausa tras 7 días sin actividad). El costo variable es OpenAI con GPT-4o mini a $0.15 por millón de tokens — para 20-30 pedidos diarios menos de $2 USD/mes. Total del sistema: menos de $10 USD/mes. Si escalás, Supabase Pro sale $25/mes y Vercel Pro $20/mes.
+
+Modelo: GPT-4o mini. Suficiente para seguir el flujo conversacional y respetar el system prompt, mucho más económico que GPT-4o.
+
+Evolution API: API open source que conecta WhatsApp via WhatsApp Web sin depender de la API oficial de Meta. Más accesible pero con riesgos de ToS. Para un negocio chico con bajo volumen el riesgo es manejable.
+
+Pedidos falsos: no hay verificación de identidad en esta versión. El bot confía en que quien escribe va a buscar el pedido. Se podría mitigar agregando un paso de seña por MercadoPago antes de confirmar. Está en el roadmap.
